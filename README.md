@@ -36,8 +36,16 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Запускаем бота
+### 4. Создаем файл .env и заполняем переменные окружения
+
+```bash
+cp .env.example .env
+```
+
+### 5. Запускаем бота
 
 ```bash
 python main.py
 ```
+
+
