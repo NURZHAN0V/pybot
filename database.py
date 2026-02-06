@@ -2,7 +2,7 @@ import sqlite3
 
 # инициализация базы данных
 def init_db():
-    conn = sqlite3.connect("users.db")
+    conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -13,7 +13,19 @@ def init_db():
             username TEXT,
             last_name TEXT,
             language_code TEXT,
-            ai_enabled BOOLEAN DEFAULT 0
+            ai_enabled BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            request TEXT NOT NULL,
+            response TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
         )
     """)
     conn.commit()
@@ -22,7 +34,7 @@ def init_db():
 
 # проверка существования пользователя в базе данных
 def user_exists(telegram_user_id):
-    conn = sqlite3.connect("users.db")
+    conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE telegram_user_id = ?", (telegram_user_id,))
     user = cursor.fetchone()
@@ -31,7 +43,7 @@ def user_exists(telegram_user_id):
 
 # проверка на доступ к чату
 def is_chat_accessible(chat_id):
-    conn = sqlite3.connect("users.db")
+    conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE telegram_user_id = ? AND ai_enabled = ?", (chat_id, 1,))
     user = cursor.fetchone()
@@ -41,7 +53,7 @@ def is_chat_accessible(chat_id):
 # выдать права администратора
 def admin_add(user_id):
     if user_exists(user_id):
-        conn = sqlite3.connect("users.db")
+        conn = sqlite3.connect("database.db")
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE users SET ai_enabled = 1, role = 'admin' WHERE telegram_user_id = ?",
@@ -55,7 +67,7 @@ def admin_add(user_id):
 # сохранение пользователя при первом контакте
 def save_user(from_user):
     if not user_exists(from_user.id):
-        conn = sqlite3.connect("users.db")
+        conn = sqlite3.connect("database.db")
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO users (role, telegram_user_id, first_name, username, last_name, language_code) VALUES (?, ?, ?, ?, ?, ?)",
@@ -64,6 +76,26 @@ def save_user(from_user):
         conn.commit()
         conn.close()
 
+
+# сохранение сообщения
+def save_message(user_id, request, response):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO messages (user_id, request, response) VALUES (?, ?, ?)",
+        (user_id, request, response)
+    )
+    conn.commit()
+    conn.close()
+
+# получении всех сообщений пользователя
+def get_messages(user_id):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM messages WHERE user_id = ?", (user_id,))
+    messages = cursor.fetchall()
+    conn.close()
+    return messages
 
 # cursor.execute("SELECT * FROM users")
 # rows = cursor.fetchall()
