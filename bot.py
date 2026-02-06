@@ -23,6 +23,21 @@ def start_message(message):
         "Привет! Я - асситент Олег. Чем могу помочь?"
     )
 
+# обработчик команд /me
+@bot.message_handler(commands=['me'])
+def id_message(message):
+    # возвращаем информацию о пользователе: id, first_name, username, language_code
+    from_user = (
+        f"Ваш ID: `{message.from_user.id}`\n"
+        f"Ваше имя: `{message.from_user.first_name}`\n"
+        f"Ваш username: `{message.from_user.username or 'не указан'}`\n"
+        f"Язык: `{message.from_user.language_code}`"
+    )
+
+    bot.send_chat_action(message.chat.id, 'typing')
+    bot.send_message(message.chat.id, from_user, parse_mode="Markdown")
+
+
 # выдать права администратора
 @bot.message_handler(commands=['admin'])
 def admin_message(message):
