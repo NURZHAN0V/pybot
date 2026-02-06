@@ -30,6 +30,12 @@ venv\Scripts\Activate.ps1
 source venv/bin/activate
 ```
 
+Если вы видите ошибку после попытки активировать виртуальное окружение, выполните следующую команду:
+
+```bash
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
 ### 3. Устанавливаем зависимости
 
 ```bash
@@ -45,7 +51,7 @@ cp .env.example .env
 ### 5. Запускаем бота
 
 ```bash
-python main.py
+python bot.py
 ```
 
 
