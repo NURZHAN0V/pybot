@@ -57,10 +57,23 @@ def admin_message(message):
 def echo_message(message):
     if not is_chat_accessible(message.chat.id):
         bot.reply_to(message, "У тебя нет подписки, обратись к администратору @olegnastyle.")
-    else:
-        bot.send_chat_action(message.chat.id, 'typing')
-        response = fetch_openrouter_api_key(OPENROUTER_KEY, message.text)
-        bot.send_message(message.chat.id, response)
+        return
+
+    bot.send_chat_action(message.chat.id, 'typing')
+
+    # Получаем историю и формируем контекст
+    # из последних 5 сообщений + новое
+    history = get_messages(message.from_user.id)
+    prompt = "".join([f"Пользователь: {m[2]}\nБот: {m[3]}\n" for m in history[-5:]])
+    prompt += f"\nПользователь пишет: {message.text}"
+
+    # Отправляем в API
+    response = fetch_openrouter_api_key(OPENROUTER_KEY, prompt)
+
+    # Сохраняем
+    save_message(message.from_user.id, message.text, response)
+
+    bot.send_message(message.chat.id, response, parse_mode="Markdown")
 
 if __name__ == '__main__':
     init_db()
