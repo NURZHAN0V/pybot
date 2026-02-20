@@ -1,11 +1,17 @@
+import os
+import time
 import telebot as t
 from database import *
 from openrouter import *
 from mitup import *
 from config import *
-import time
+from audio import *
 
 bot = t.TeleBot(TELEGRAM_TOKEN)
+
+# создаем папку temp
+TEMP_DIR = "temp"
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 
 # обработчик команд /start и /help
@@ -33,7 +39,7 @@ def id_message(message):
     bot.send_message(message.chat.id, from_user, parse_mode="Markdown")
 
 
-# выдать права администратора
+# обработчик команды /admin
 @bot.message_handler(commands=['admin'])
 def admin_message(message):
     if message.from_user.id == int(TELEGRAM_ADMIN_ID):
@@ -46,6 +52,35 @@ def admin_message(message):
         bot.send_chat_action(message.chat.id, 'typing')
         bot.send_message(message.chat.id, "У тебя нет прав администратора")
 
+
+def _reply_ai(user_id, chat_id, text):
+    """Контекст + запрос в ИИ, сохранение, ответ."""
+    history = get_messages(user_id)
+    prompt = "".join([f"Пользователь: {m[2]}\nБот: {m[3]}\n" for m in history[-5:]])
+    prompt += f"\nПользователь пишет: {text}"
+    response = fetch_openrouter_api_key(OPENROUTER_KEY, prompt)
+    save_message(user_id, text, response)
+    bot.send_message(chat_id, response, parse_mode="Markdown")
+
+    
+@bot.message_handler(content_types=['voice'])
+def handle_voice(message):
+    bot.send_chat_action(message.chat.id, 'typing')
+
+    file_info = bot.get_file(message.voice.file_id)
+    ogg_path = f"{TEMP_DIR}/voice_{message.message_id}.ogg"
+    wav_path = f"{TEMP_DIR}/voice_{message.message_id}.wav"
+    with open(ogg_path, 'wb') as f:
+        f.write(bot.download_file(file_info.file_path))
+    convert_ogg_to_wav(ogg_path, wav_path)
+    text = wav_to_text(wav_path)
+    if not text:
+        bot.reply_to(message, "(не удалось распознать)")
+        return
+    if not is_chat_accessible(message.chat.id):
+        bot.reply_to(message, "У тебя нет подписки, обратись к администратору @olegnastyle ☺️")
+        return
+    _reply_ai(message.from_user.id, message.chat.id, text)
 
 # обработчик сообщений для генерации изабражения
 @bot.message_handler(func=lambda message: "нарис" in message.text.lower())
@@ -69,22 +104,8 @@ def echo_message(message):
     if not is_chat_accessible(message.chat.id):
         bot.reply_to(message, "У тебя нет подписки, обратись к администратору @olegnastyle ☺️")
         return
-
     bot.send_chat_action(message.chat.id, 'typing')
-
-    # Получаем историю и формируем контекст
-    # из последних 5 сообщений + новое
-    history = get_messages(message.from_user.id)
-    prompt = "".join([f"Пользователь: {m[2]}\nБот: {m[3]}\n" for m in history[-5:]])
-    prompt += f"\nПользователь пишет: {message.text}"
-
-    # Отправляем в API
-    response = fetch_openrouter_api_key(OPENROUTER_KEY, prompt)
-
-    # Сохраняем
-    save_message(message.from_user.id, message.text, response)
-
-    bot.send_message(message.chat.id, response, parse_mode="Markdown")
+    _reply_ai(message.from_user.id, message.chat.id, message.text)
 
 if __name__ == '__main__':
     init_db()

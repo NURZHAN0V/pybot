@@ -1,3 +1,8 @@
 python-dotenv
 pyTelegramBotAPI
 pysqlite3
+PyAudio
+SpeechRecognition
+vosk
+soundfile
+numpy
