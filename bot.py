@@ -1,5 +1,5 @@
 import os
-import time
+import threading
 import telebot as t
 from database import *
 from openrouter import *
@@ -12,6 +12,14 @@ bot = t.TeleBot(TELEGRAM_TOKEN)
 # создаем папку temp
 TEMP_DIR = "temp"
 os.makedirs(TEMP_DIR, exist_ok=True)
+
+
+def _chat_action_until(chat_id, action, stop_event):
+    """Показывает action в чате каждые 4 сек, пока не установлен stop_event."""
+    while True:
+        bot.send_chat_action(chat_id, action)
+        if stop_event.wait(4):
+            break
 
 
 # обработчик команд /start и /help
@@ -65,8 +73,8 @@ def _reply_ai(user_id, chat_id, text):
     
 @bot.message_handler(content_types=['voice'])
 def handle_voice(message):
-    bot.send_chat_action(message.chat.id, 'typing')
-
+    stop = threading.Event()
+    threading.Thread(target=_chat_action_until, args=(message.chat.id, 'typing', stop), daemon=True).start()
     file_info = bot.get_file(message.voice.file_id)
     ogg_path = f"{TEMP_DIR}/voice_{message.message_id}.ogg"
     wav_path = f"{TEMP_DIR}/voice_{message.message_id}.wav"
@@ -75,12 +83,15 @@ def handle_voice(message):
     convert_ogg_to_wav(ogg_path, wav_path)
     text = wav_to_text(wav_path)
     if not text:
+        stop.set()
         bot.reply_to(message, "(не удалось распознать)")
         return
     if not is_chat_accessible(message.chat.id):
+        stop.set()
         bot.reply_to(message, "У тебя нет подписки, обратись к администратору @olegnastyle ☺️")
         return
     _reply_ai(message.from_user.id, message.chat.id, text)
+    stop.set()
 
 # обработчик сообщений для генерации изабражения
 @bot.message_handler(func=lambda message: "нарис" in message.text.lower())
@@ -88,14 +99,12 @@ def draft_message(message):
     if not is_chat_accessible(message.chat.id):
         bot.reply_to(message, "У тебя нет подписки, обратись к администратору @olegnastyle ☺️")
         return
-    
     prompt = message.text
-
+    stop = threading.Event()
+    threading.Thread(target=_chat_action_until, args=(message.chat.id, 'upload_photo', stop), daemon=True).start()
     image_url = fetch_draft(prompt, MITUP_KEY, MITU_URL)
+    stop.set()
     bot.send_photo(message.chat.id, image_url)
-    while not image_url:
-        bot.send_chat_action(message.chat.id, 'upload_photo')
-        time.sleep(5)
 
 
 # обработчик всех остальных сообщений
@@ -104,8 +113,10 @@ def echo_message(message):
     if not is_chat_accessible(message.chat.id):
         bot.reply_to(message, "У тебя нет подписки, обратись к администратору @olegnastyle ☺️")
         return
-    bot.send_chat_action(message.chat.id, 'typing')
+    stop = threading.Event()
+    threading.Thread(target=_chat_action_until, args=(message.chat.id, 'typing', stop), daemon=True).start()
     _reply_ai(message.from_user.id, message.chat.id, message.text)
+    stop.set()
 
 if __name__ == '__main__':
     init_db()
