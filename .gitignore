@@ -23,6 +23,9 @@ __pycache__/
 dist/
 build/
 
+# Игнорировать директорию временных файлов
+temp/
+
 # Игнорировать файлы IDE (PyCharm, VS Code и др.)
 .idea/
 .vscode/
